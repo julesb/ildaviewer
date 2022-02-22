@@ -11,7 +11,6 @@ PFont font;
 
 String ildaPath;
 String ildaFilename;
-IldaFile ildaFile;
 IldaPlayerAsync player;
 
 File[] dataFiles;
@@ -68,13 +67,14 @@ void setup() {
   }
 
   println("sketchpath: " + sketchPath());
+  IldaFile file;
   if (previewMode) {
-    ildaFile  = new IldaFile(ildaFilename, ildaFilename);
+    file  = new IldaFile(ildaFilename, ildaFilename);
   } else {
-    ildaFile  = new IldaFile(dataPath(ildaFilename), ildaFilename);
+    file = new IldaFile(dataPath(ildaFilename), ildaFilename);
   }
   
-  player = new IldaPlayerAsync(ildaFile, this.pointsPerSec, this.oscSendEnabled, true);
+  player = new IldaPlayerAsync(file, this.pointsPerSec, this.oscSendEnabled, true);
   thread("playerThread");
   prevFileChangeTime = millis();
 
@@ -236,10 +236,6 @@ void prevFrame() {
 }
 
 void load(int fileIdx) {
-  String filename = ildaFilenames.get(fileIdx);
-  ildaFilename = ildaPath + "/" + filename;
-  String shortname = makeShortName(filename, 20);
-  ildaFile  = new IldaFile(ildaFilename, shortname);  
   thread("playerThread");
 }
 void loadNext() {
@@ -261,13 +257,17 @@ void loadRandom() {
 void drawInfo(int x, int y) {  
   int lineheight = 28;
   int pps = 0;
+  String fname = "";
   int frameidx = 0;
+  int framecount = 0;
   int numpoints = 0;
   float oscfps = 0;
   String name = "", cname = "", formatname = "";
   if (player != null && player.currentFrame != null && player.currentFrame.header != null) {
+    fname = player.file.name;
     pps = player.pointsPerSec;
     frameidx = player.currentFrameIdx;
+    framecount = player.file.frameCount;
     name = player.currentFrame.header.name;
     cname = player.currentFrame.header.companyName;
     numpoints = player.currentFrame.pointCount;
@@ -275,11 +275,11 @@ void drawInfo(int x, int y) {
     oscfps = player.getOscFps();
   }
   
-  fill(240);
+  fill(192);
   text(String.format("%s | F:%05d/%05d | P:%4d | %s | %s%s |" ,
-       ildaFile.name,
+       fname,
        frameidx+1,
-       ildaFile.frameCount,
+       framecount,
        numpoints,
        formatname,
        name,
@@ -377,20 +377,22 @@ int[] rgbIntensity(int[] rgb, float intensity) {
   return ret;
 }
 
-void oscSendFloat(String name, float value) {
-  OscMessage msg = new OscMessage(name);
-  msg.add(value);
-  oscP5.send(msg, network);
-}
-
 
 void playerThread() throws InterruptedException {
   if (player != null) {
     player.stop();
   }
-  if (ildaFile != null) {
+  String filename = ildaFilenames.get(currentFileIdx);
+  ildaFilename = ildaPath + "/" + filename;
+  String shortname = makeShortName(filename, 20);
+  IldaFile file  = new IldaFile(ildaFilename, shortname);
+
+  if (file == null || file.frameCount == 0) {
+    println("NO DATA: " + filename);
+  }
+  else {
     fileLoopCount = 0;
-    player = new IldaPlayerAsync(ildaFile, this.pointsPerSec, this.oscSendEnabled, true);
+    player = new IldaPlayerAsync(file, this.pointsPerSec, this.oscSendEnabled, true);
     player.play();
   }
 }

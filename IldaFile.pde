@@ -25,7 +25,6 @@ public class IldaFile {
     do {
       frame = new IldaFrame(frameOffset, this.bytes);
       if (frame.header.numRecords == 0) {
-        println(name + ": ##### EOF\n");
         break;
       }
       else {
