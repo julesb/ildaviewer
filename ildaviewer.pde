@@ -45,6 +45,7 @@ void setup() {
 
   if (args != null && args.length == 1) {
     ildaFilename = args[0];
+    ildaFilenames.add(ildaFilename);
     autoChangeEnabled = false;
     previewMode = true;
     constantPPS = false;
@@ -81,7 +82,7 @@ void setup() {
   blendMode(ADD); 
   font = loadFont("Courier-Bold-64.vlw");
   textFont(font);
-  textSize(28);
+  textSize(24);
   
 }
 
@@ -255,7 +256,7 @@ void loadRandom() {
 
 
 void drawInfo(int x, int y) {  
-  int lineheight = 28;
+  int lineheight = 24;
   int pps = 0;
   String fname = "";
   int frameidx = 0;
@@ -276,7 +277,9 @@ void drawInfo(int x, int y) {
   }
   
   fill(192);
-  text(String.format("%s | F:%05d/%05d | P:%4d | %s | %s%s |" ,
+  text(String.format("%d/%d |%s |F:%04d/%04d |P:%4d |%s |%s%s" ,
+       currentFileIdx+1,
+       ildaFilenames.size(),
        fname,
        frameidx+1,
        framecount,
