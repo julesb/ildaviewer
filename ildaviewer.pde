@@ -7,7 +7,7 @@ OscP5 oscP5;
 NetAddress network;
 OscProperties oscProps;
 PFont font;
-
+static final int TEXT_SIZE = 24;
 
 String ildaPath;
 String ildaFilename;
@@ -28,6 +28,7 @@ boolean autoChangeRandom = true;
 boolean previewMode = false;
 boolean constantPPS = false;
 boolean showInfo = true;
+int infoMode = 2; // 0=off, 1=file/frame info, 2=file/frame info + status
 boolean showBlankLines = true;
 boolean oscSendEnabled = false;
 boolean paused = false;
@@ -82,7 +83,7 @@ void setup() {
   blendMode(ADD); 
   font = loadFont("Courier-Bold-64.vlw");
   textFont(font);
-  textSize(24);
+  textSize(TEXT_SIZE);
   
 }
 
@@ -96,6 +97,17 @@ void draw() {
   if (player != null && player.file != null && player.currentFrame != null) {
     drawFrame(player.currentFrame);
     
+    
+  }
+
+  if (infoMode > 0) {
+    drawFrameInfo(0, 0);
+  }
+  if (infoMode > 1) {
+    drawStatusInfo(2, (int)(TEXT_SIZE * 1.5));
+  }
+
+
     if (autoChangeEnabled
       && fileLoopCount > 0
       && t - prevFileChangeTime > autoChangeInterval) {
@@ -106,12 +118,7 @@ void draw() {
       }
       prevFileChangeTime = t;
     }
-    
-  }
 
-  if (showInfo) {
-    drawInfo(2, 24);
-  }
 
 }
 
@@ -150,7 +157,8 @@ void keyTyped() {
       println("constant PPS: " + constantPPS);
       break;
     case 'i':
-      showInfo = !showInfo;
+      //showInfo = !showInfo;
+      infoMode = (infoMode+1) % 3;
       break;
     case 'b':
       showBlankLines = !showBlankLines;
@@ -254,15 +262,12 @@ void loadRandom() {
   load(currentFileIdx);
 }
 
-
-void drawInfo(int x, int y) {  
-  int lineheight = 24;
+void drawFrameInfo(int x, int y) {
   int pps = 0;
   String fname = "";
   int frameidx = 0;
   int framecount = 0;
   int numpoints = 0;
-  float oscfps = 0;
   String name = "", cname = "", formatname = "";
   if (player != null && player.currentFrame != null && player.currentFrame.header != null) {
     fname = player.file.name;
@@ -273,7 +278,6 @@ void drawInfo(int x, int y) {
     cname = player.currentFrame.header.companyName;
     numpoints = player.currentFrame.pointCount;
     formatname = player.currentFrame.header.getFormatName();
-    oscfps = player.getOscFps();
   }
   
   fill(192);
@@ -287,22 +291,35 @@ void drawInfo(int x, int y) {
        formatname,
        name,
        cname),
-       x, y + lineheight*0);
+       x, y + TEXT_SIZE);
+
+  drawProgress(0, 0, width, 2);
+
+}
+
+void drawStatusInfo(int x, int y) {  
+  int lineheight = 24;
+  float oscfps = 0;
+  int pps = 0;
+  if (player != null) {
+    oscfps = player.getOscFps();
+    pps = player.pointsPerSec;
+  }
+  
 
   fill(128);
-  text("PPS:     " + pps, x, y + lineheight*2);
-  text("OSC FPS: " + String.format("%.1f", oscfps), x, y + lineheight*3);
-  text("FPS:     " + String.format("%.1f", frameRate), x, y + lineheight*4);
-  text("Auto:    " + autoChangeEnabled, x, y + lineheight*5);
+  text("PPS:     " + pps, x, y + lineheight*1);
+  text("OSC FPS: " + String.format("%.1f", oscfps), x, y + lineheight*2);
+  text("FPS:     " + String.format("%.1f", frameRate), x, y + lineheight*3);
+  text("Auto:    " + autoChangeEnabled, x, y + lineheight*4);
 
   if (oscSendEnabled) {
     fill(240, 0, 0);
   } else {
     fill(128);
   }
-  text("OSC:     " + oscSendEnabled, x, y + lineheight*6);
+  text("OSC:     " + oscSendEnabled, x, y + lineheight*5);
 
-  drawProgress(0, 0, width, 2);
 }
 
 void drawFrame(IldaFrame frame) {
