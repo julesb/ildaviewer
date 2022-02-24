@@ -27,11 +27,14 @@ boolean autoChangeEnabled = false;
 boolean autoChangeRandom = true;
 boolean previewMode = false;
 boolean constantPPS = false;
-boolean showInfo = true;
+//boolean showInfo = true;
 int infoMode = 2; // 0=off, 1=file/frame info, 2=file/frame info + status
 boolean showBlankLines = true;
 boolean oscSendEnabled = false;
 boolean paused = false;
+boolean highPrecisionTiming = false;
+boolean isScrubbing = false;
+int scrubZoneHeight = 32;
 
 
 void setup() {
@@ -91,13 +94,9 @@ void setup() {
 
 void draw() {
   background(0);
-  int t = millis();
-
 
   if (player != null && player.file != null && player.currentFrame != null) {
     drawFrame(player.currentFrame);
-    
-    
   }
 
   if (infoMode > 0) {
@@ -107,18 +106,21 @@ void draw() {
     drawStatusInfo(2, (int)(TEXT_SIZE * 1.5));
   }
 
+  if(mouseY < scrubZoneHeight || isScrubbing) {
+    drawScrubZone(0,0, width, scrubZoneHeight);
+  }
 
-    if (autoChangeEnabled
+  int t = millis();
+  if (autoChangeEnabled
       && fileLoopCount > 0
       && t - prevFileChangeTime > autoChangeInterval) {
-      if (autoChangeRandom) {
-        loadRandom();
-      } else {
-        loadNext();
-      }
-      prevFileChangeTime = t;
+    if (autoChangeRandom) {
+      loadRandom();
+    } else {
+      loadNext();
     }
-
+    prevFileChangeTime = t;
+  }
 
 }
 
@@ -190,11 +192,9 @@ void keyTyped() {
       }
       break;
     case 'p':
-      if (player != null && !player.ended) {
-        player.stop();
-      }
-      else {
-          thread("playerThread");
+      highPrecisionTiming = !highPrecisionTiming;
+      if (player != null) {
+        player.highPrecision = highPrecisionTiming;
       }
       break;
     case '-':
@@ -211,6 +211,60 @@ void keyTyped() {
   if (paused) {
     redraw();
   }
+}
+
+void mousePressed() {
+  if (mouseButton == LEFT && mouseY < scrubZoneHeight) {
+    isScrubbing = true;
+    if (paused) {
+      redraw();
+    }
+    if (player != null) {
+      player.scrubbing = true;
+      scrub();
+    }
+  }
+}
+
+void mouseDragged() {
+  if (!isScrubbing) {
+    return;
+  }
+  if (player == null || player.file == null) {
+    return;
+  }
+  scrub();
+  if (paused) {
+    redraw();
+  }
+}
+
+void mouseMoved() {
+  if (paused && !isScrubbing) {
+    redraw();
+  }
+}
+
+void mouseReleased() {
+  isScrubbing = false;
+  if (paused) {
+    redraw();
+  }
+  if (player != null) {
+    player.scrubbing = false;
+  }
+
+}
+
+void scrub() {
+  if (player == null || player.file == null) {
+    return;
+  }
+  float x = (float)mouseX / width;
+  int newFrameIdx = (int)(x * player.file.frameCount);
+  newFrameIdx = max(newFrameIdx, 0);
+  newFrameIdx = min (newFrameIdx, player.file.frameCount-1);
+  player.currentFrameIdx = newFrameIdx;
 }
 
 String makeShortName(String filename, int maxlen) {
@@ -245,6 +299,9 @@ void prevFrame() {
 }
 
 void load(int fileIdx) {
+  if(player != null) {
+    player.ended = true;
+  }
   thread("playerThread");
 }
 void loadNext() {
@@ -260,66 +317,6 @@ void loadPrev() {
 void loadRandom() {
   currentFileIdx = (int)(random(1.0)*ildaFilenames.size());
   load(currentFileIdx);
-}
-
-void drawFrameInfo(int x, int y) {
-  int pps = 0;
-  String fname = "";
-  int frameidx = 0;
-  int framecount = 0;
-  int numpoints = 0;
-  String name = "", cname = "", formatname = "";
-  if (player != null && player.currentFrame != null && player.currentFrame.header != null) {
-    fname = player.file.name;
-    pps = player.pointsPerSec;
-    frameidx = player.currentFrameIdx;
-    framecount = player.file.frameCount;
-    name = player.currentFrame.header.name;
-    cname = player.currentFrame.header.companyName;
-    numpoints = player.currentFrame.pointCount;
-    formatname = player.currentFrame.header.getFormatName();
-  }
-  
-  fill(192);
-  text(String.format("%d/%d |%s |F:%04d/%04d |P:%4d |%s |%s%s" ,
-       currentFileIdx+1,
-       ildaFilenames.size(),
-       fname,
-       frameidx+1,
-       framecount,
-       numpoints,
-       formatname,
-       name,
-       cname),
-       x, y + TEXT_SIZE);
-
-  drawProgress(0, 0, width, 2);
-
-}
-
-void drawStatusInfo(int x, int y) {  
-  int lineheight = 24;
-  float oscfps = 0;
-  int pps = 0;
-  if (player != null) {
-    oscfps = player.getOscFps();
-    pps = player.pointsPerSec;
-  }
-  
-
-  fill(128);
-  text("PPS:     " + pps, x, y + lineheight*1);
-  text("OSC FPS: " + String.format("%.1f", oscfps), x, y + lineheight*2);
-  text("FPS:     " + String.format("%.1f", frameRate), x, y + lineheight*3);
-  text("Auto:    " + autoChangeEnabled, x, y + lineheight*4);
-
-  if (oscSendEnabled) {
-    fill(240, 0, 0);
-  } else {
-    fill(128);
-  }
-  text("OSC:     " + oscSendEnabled, x, y + lineheight*5);
-
 }
 
 void drawFrame(IldaFrame frame) {
@@ -362,12 +359,70 @@ void drawFrame(IldaFrame frame) {
       int[] rgb = rgbIntensity(p1.rgb, 0.4);
       strokeWeight(6);
       stroke(rgb[0], rgb[1], rgb[2]);
-      //stroke(255);
     }
 
     line(x1, y1, x2, y2);
   }
   popMatrix();
+}
+
+
+void drawFrameInfo(int x, int y) {
+  String fname = "";
+  int frameidx = 0;
+  int framecount = 0;
+  int numpoints = 0;
+  String name = "", cname = "", formatname = "";
+  if (player != null && player.currentFrame != null && player.currentFrame.header != null) {
+    fname = player.file.name;
+    frameidx = player.currentFrameIdx;
+    framecount = player.file.frameCount;
+    name = player.currentFrame.header.name;
+    cname = player.currentFrame.header.companyName;
+    numpoints = player.currentFrame.pointCount;
+    formatname = player.currentFrame.header.getFormatName();
+  }
+  
+  fill(192);
+  text(String.format("%d/%d |%s |F:%04d/%04d |P:%4d |%s |%s%s" ,
+       currentFileIdx+1,
+       ildaFilenames.size(),
+       fname,
+       frameidx+1,
+       framecount,
+       numpoints,
+       formatname,
+       name,
+       cname),
+       x, y + TEXT_SIZE);
+
+  drawProgress(0, 0, width, 2);
+
+}
+
+void drawStatusInfo(int x, int y) {  
+  int lineheight = 24;
+  float oscfps = 0;
+  int pps = 0;
+  if (player != null) {
+    oscfps = player.getOscFps();
+    pps = player.pointsPerSec;
+  }
+
+  fill(128);
+  text("PPS:     " + pps, x, y + lineheight*1);
+  text("OSC FPS: " + String.format("%.1f", oscfps), x, y + lineheight*2);
+  text("FPS:     " + String.format("%.1f", frameRate), x, y + lineheight*3);
+  text("Auto:    " + autoChangeEnabled, x, y + lineheight*4);
+  text("Precis:  " + (highPrecisionTiming? "high": "1ms"), x, y + lineheight*5);
+  
+
+  if (oscSendEnabled) {
+    fill(240, 0, 0);
+  } else {
+    fill(128);
+  }
+  text("OSC:     " + oscSendEnabled, x, y + lineheight*6);
 }
 
 
@@ -379,13 +434,39 @@ void drawProgress(int x, int y, int w, int h) {
   if (numFrames == 0) {
     return;
   }
+  
   strokeWeight(h);
-  stroke(64);
   float t = ((float) (1+player.currentFrameIdx)) / numFrames;
   float x2 = x + t * w;
   stroke(0, 255, 0);
   line(x, y, x2, y);
+  
+  if (isScrubbing) {
+    fill(0,255,0);
+    //line(x2, y, x2, TEXT_SIZE);
+    ellipse(x2, y, 10, 10);
+  }
 }
+
+
+void drawScrubZone(int x, int y, int w, int h) {
+  if (player == null || player.file == null) {
+    return;
+  }
+  int numFrames = player.file.frameCount;
+  if (numFrames == 0) {
+    return;
+  }
+  
+  float t = ((float) (1+player.currentFrameIdx)) / numFrames;
+  float x2 = x + t * w;
+  fill(0,255,0, 64);
+  noStroke();
+  rect(0,0,x2, scrubZoneHeight);
+}
+
+
+
 
 
 int[] rgbIntensity(int[] rgb, float intensity) {

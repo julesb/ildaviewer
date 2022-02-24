@@ -8,7 +8,9 @@ public class IldaPlayerAsync {
   boolean ended = false;
   boolean repeat = true;
   boolean oscSendEnabled = false;
+  boolean highPrecision = false;
   long t_nextframe = 0;
+  boolean scrubbing = false;
   
   float[] oscBufferX;
   float[] oscBufferY;
@@ -33,25 +35,33 @@ public class IldaPlayerAsync {
     println("IldaPlayerAsync.play(): " + this.file.name);
     while(!this.ended) {
       long t_now = System.nanoTime();
-      if (!this.paused && t_now >= t_nextframe) {
-        //currentFrame = file.frames.get(currentFrameIdx);
+      if ((!this.paused || scrubbing) && t_now >= t_nextframe) {
         double fps = ((double)this.pointsPerSec / currentFrame.pointCount);
         long frameDuration = (long)((1000000000.0 / fps));
         t_nextframe = t_now + frameDuration;
-                    
-        //this.oscSendFrame(this.currentFrame);
+
+        oscSendFrame(this.currentFrame);
+
+        if (scrubbing) {
+          loadFrame(currentFrameIdx);
+          continue;
+        }
 
         if (!this.repeat && this.currentFrameIdx >= this.file.frameCount) {
           this.ended = true;
           break;
         }
-        if (this.currentFrameIdx >= this.file.frameCount-1 && this.prevFrameIdx != currentFrameIdx) {
+
+        if (this.currentFrameIdx >= this.file.frameCount-1
+            && this.prevFrameIdx != currentFrameIdx) {
           endOfFileCallback();
         }
 
         this.nextFrame();
-        //currentFrameIdx = (currentFrameIdx+1) % file.frameCount;
-        Thread.sleep(1);
+
+        if (!highPrecision) {
+          Thread.sleep(1);
+        }
       }
       else {
         Thread.sleep(50);
@@ -84,7 +94,6 @@ public class IldaPlayerAsync {
     this.prevFrameIdx = currentFrameIdx;
     this.currentFrameIdx = (this.currentFrameIdx+1) % this.file.frameCount;
     this.loadFrame(this.currentFrameIdx);
-    oscSendFrame(this.currentFrame);
   }
   
   public void prevFrame() {
@@ -93,7 +102,6 @@ public class IldaPlayerAsync {
     }
     currentFrameIdx = (currentFrameIdx <= 0)? file.frameCount-1: currentFrameIdx-1;
     this.loadFrame(currentFrameIdx);
-    oscSendFrame(currentFrame);
   }
 
   public float getOscFps() {
