@@ -71,11 +71,12 @@ public class IldaPlayerAsync {
   }
   
   public void stop() {
-    println("IldaPlayerAsync.stop(): ended: "+ this.file.name);
+    println("IldaPlayerAsync.stop(): "+ this.file.name);
     this.ended = true;
   }
 
   public void pause(boolean paused) {
+    println("IldaPlayerAsync.paused(): "+ paused);
     this.paused = paused;
   }
 
