@@ -1,9 +1,13 @@
 public class IldaPlayerAsync {
+  public static final int MAX_OSC_FPS = 100;
   public IldaFile file;
   public IldaFrame currentFrame;
   public int pointsPerSec = 12000;
   int currentFrameIdx = 0;
   int prevFrameIdx = -1;
+  int fileSeed = (int) (random(1.0) * 0xffffffff);
+  int currentHash;
+  int prevHash;
   boolean paused = false;
   boolean ended = false;
   boolean repeat = true;
@@ -12,12 +16,8 @@ public class IldaPlayerAsync {
   long t_nextframe = 0;
   boolean scrubbing = false;
   
-  float[] oscBufferX;
-  float[] oscBufferY;
-  float[] oscBufferBl;
-  float[] oscBufferR;
-  float[] oscBufferG;
-  float[] oscBufferB;
+  float[] oscBufferXYRGBI;
+
   public IldaPlayerAsync(IldaFile file, int pps, boolean oscEnabled, boolean repeat) {
     this.file = file;
     if (file == null || file.frameCount == 0) {
@@ -26,8 +26,8 @@ public class IldaPlayerAsync {
     this.pointsPerSec = pps;
     this.repeat = repeat;
     this.oscSendEnabled = oscEnabled;
-    currentFrameIdx = 0;
-    this.loadFrame(currentFrameIdx);
+    currentFrameIdx = -1;
+    this.nextFrame();
   }
 
 
@@ -37,10 +37,13 @@ public class IldaPlayerAsync {
       long t_now = System.nanoTime();
       if ((!this.paused || scrubbing) && t_now >= t_nextframe) {
         double fps = ((double)this.pointsPerSec / currentFrame.pointCount);
+        fps = (fps < MAX_OSC_FPS)? fps : MAX_OSC_FPS;
         long frameDuration = (long)((1000000000.0 / fps));
         t_nextframe = t_now + frameDuration;
 
-        oscSendFrame(this.currentFrame);
+        //if (currentHash != prevHash) {
+          oscSendFrameXYRGB(this.currentFrame);
+        //}
 
         if (scrubbing) {
           loadFrame(currentFrameIdx);
@@ -54,6 +57,7 @@ public class IldaPlayerAsync {
 
         if (this.currentFrameIdx >= this.file.frameCount-1
             && this.prevFrameIdx != currentFrameIdx) {
+          file.droppedFrameCount = 0;
           endOfFileCallback();
         }
 
@@ -84,7 +88,10 @@ public class IldaPlayerAsync {
     if (file == null || file.frameCount == 0) {
       return;
     }
+    this.prevHash = currentHash;
+    this.currentHash = frameHash(fileSeed, frameIdx);
     this.currentFrame = file.frames.get(frameIdx);
+    this.prevFrameIdx = currentFrameIdx;
     this.currentFrameIdx = frameIdx;
   }
   
@@ -92,9 +99,10 @@ public class IldaPlayerAsync {
     if (this.file == null || this.file.frameCount == 0) {
       return;
     }
-    this.prevFrameIdx = currentFrameIdx;
-    this.currentFrameIdx = (this.currentFrameIdx+1) % this.file.frameCount;
-    this.loadFrame(this.currentFrameIdx);
+    this.loadFrame((this.currentFrameIdx+1) % this.file.frameCount);
+    if (paused) {
+      oscSendFrameXYRGB(this.currentFrame);
+    }
   }
   
   public void prevFrame() {
@@ -103,15 +111,61 @@ public class IldaPlayerAsync {
     }
     currentFrameIdx = (currentFrameIdx <= 0)? file.frameCount-1: currentFrameIdx-1;
     this.loadFrame(currentFrameIdx);
+    oscSendFrameXYRGB(this.currentFrame);
   }
 
   public float getOscFps() {
     if (this.currentFrame == null || this.currentFrame.pointCount == 0) {
       return 0.0;
     }
-    return (float)this.pointsPerSec / this.currentFrame.pointCount;
+    float fps = (float)this.pointsPerSec / this.currentFrame.pointCount;
+    fps = (fps < MAX_OSC_FPS)? fps : MAX_OSC_FPS;
+    return fps;
   }
 
+  public int frameHash(int seed, int frameIdx) {
+    return seed * 10000 + frameIdx;
+  }
+
+  void oscSendFrameXYRGB(IldaFrame frame) {
+    if (! this.oscSendEnabled) {
+      return;
+    }
+    int numpoints = frame.points.size();
+    if (numpoints > 2600) {
+      file.droppedFrameCount++;
+      return;
+    }
+    if (oscBufferXYRGBI == null || numpoints != oscBufferXYRGBI.length) {
+      oscBufferXYRGBI = new float[numpoints*5];
+    }
+    for (int i=0; i< numpoints; i++) {
+      IldaPoint p = frame.points.get(i);
+      float blanknum = p.blank? 0.0 : 1.0;
+      int bidx = i * 5;
+      oscBufferXYRGBI[bidx+0]  =  p.x / (float)Short.MAX_VALUE * 0x7ff;
+      oscBufferXYRGBI[bidx+1]  =  p.y / (float)Short.MAX_VALUE * 0x7ff;
+      oscBufferXYRGBI[bidx+2]  =  p.rgb[0] * blanknum;
+      oscBufferXYRGBI[bidx+3]  =  p.rgb[1] * blanknum;
+      oscBufferXYRGBI[bidx+4]  =  p.rgb[2] * blanknum;
+    }
+
+    OscMessage ppsmsg = new OscMessage("/pps");
+    ppsmsg.add(this.pointsPerSec);
+
+    OscMessage frameMessage = new OscMessage("/xyrgb");
+    frameMessage.add(oscBufferXYRGBI);
+
+    oscP5.send(ppsmsg, network);
+    try {
+      oscP5.send(frameMessage, network);
+    }
+    catch(Exception e) {
+      e.printStackTrace();
+      println("OVERSIZE: " + oscBufferXYRGBI.length);
+    }
+  }
+/*
   void oscSendFrame(IldaFrame frame) {
     if (! this.oscSendEnabled) {
       return;
@@ -159,4 +213,5 @@ public class IldaPlayerAsync {
     oscP5.send(greenMessage, network);
     oscP5.send(blueMessage, network);
   }
+*/  
 }

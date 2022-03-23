@@ -44,7 +44,7 @@ void setup() {
   oscProps = new OscProperties();
   network = new NetAddress("127.0.0.1", 12000);
   oscProps.setRemoteAddress(network);
-  oscProps.setDatagramSize(4096);
+  oscProps.setDatagramSize(65536);
   oscP5 = new OscP5(this, oscProps);
 
   if (args != null && args.length == 1) {
@@ -63,7 +63,7 @@ void setup() {
     for (int i = 0; i < dataFiles.length; i++) {
       String baseName = dataFiles[i].getName();
       if (baseName.endsWith(".ild")) {
-        println(baseName);
+        //println(baseName);
         ildaFilenames.add(baseName);
       }
     }
@@ -234,6 +234,8 @@ void mouseDragged() {
     return;
   }
   scrub();
+  //scrubSmooth();
+  
   if (paused) {
     redraw();
   }
@@ -266,6 +268,22 @@ void scrub() {
   newFrameIdx = min (newFrameIdx, player.file.frameCount-1);
   player.currentFrameIdx = newFrameIdx;
 }
+
+void scrubSmooth() {
+  if (player == null || player.file == null) {
+    return;
+  }
+  int framecount = player.file.frameCount;
+  float x1 = (float)player.currentFrameIdx / framecount;
+  float x2 = (float)mouseX / width;
+  float xnew = x1 + (x2 - x1) * 0.1;
+  
+  int newFrameIdx = (int)(xnew * framecount);
+  newFrameIdx = max(newFrameIdx, 0);
+  newFrameIdx = min (newFrameIdx, framecount-1);
+  player.currentFrameIdx = newFrameIdx;
+}
+
 
 String makeShortName(String filename, int maxlen) {
   if (filename.length() <= maxlen) {
@@ -337,6 +355,8 @@ void drawFrame(IldaFrame frame) {
   translate(width/2, height/2);
 
   int npoints = frame.points.size();
+
+  beginShape(LINES);
   for (int i = 0; i < npoints; i++) {
     int pidx1 = i;
     int pidx2 = (i+1) % npoints;
@@ -360,9 +380,12 @@ void drawFrame(IldaFrame frame) {
       strokeWeight(6);
       stroke(rgb[0], rgb[1], rgb[2]);
     }
-
-    line(x1, y1, x2, y2);
+    vertex(x1, y1);
+    vertex(x2, y2);
+    
+    //line(x1, y1, x2, y2);
   }
+  endShape();
   popMatrix();
 }
 
@@ -404,9 +427,11 @@ void drawStatusInfo(int x, int y) {
   int lineheight = 24;
   float oscfps = 0;
   int pps = 0;
-  if (player != null) {
+  int dropped = 0;
+  if (player != null && player.file != null) {
     oscfps = player.getOscFps();
     pps = player.pointsPerSec;
+    dropped = player.file.droppedFrameCount;
   }
 
   fill(128);
@@ -415,6 +440,7 @@ void drawStatusInfo(int x, int y) {
   text("FPS:     " + String.format("%.1f", frameRate), x, y + lineheight*3);
   text("Auto:    " + autoChangeEnabled, x, y + lineheight*4);
   text("Precis:  " + (highPrecisionTiming? "high": "1ms"), x, y + lineheight*5);
+  text("Dropped: " + dropped, x, y + lineheight*6);
   
 
   if (oscSendEnabled) {
@@ -422,7 +448,7 @@ void drawStatusInfo(int x, int y) {
   } else {
     fill(128);
   }
-  text("OSC:     " + oscSendEnabled, x, y + lineheight*6);
+  text("OSC:     " + oscSendEnabled, x, y + lineheight*7);
 }
 
 
@@ -467,8 +493,6 @@ void drawScrubZone(int x, int y, int w, int h) {
 
 
 
-
-
 int[] rgbIntensity(int[] rgb, float intensity) {
   int[] ret = {
     (int)(rgb[0]*intensity), 
@@ -500,7 +524,7 @@ void playerThread() throws InterruptedException {
 
 void endOfFileCallback() {
   fileLoopCount++;
-  println("end of file: " + fileLoopCount);
+  //println("repeat " + ildaFilename + ": " + fileLoopCount);
 }
 
 void timingTest() throws InterruptedException {

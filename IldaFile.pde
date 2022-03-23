@@ -15,6 +15,7 @@ public class IldaFile {
   ArrayList<IldaFrame> frames = new ArrayList();
   int frameCount = 0;
   int totalPoints = 0;
+  int droppedFrameCount = 0;
 
   public IldaFile(String filename, String name) {
     this.filename = filename;
