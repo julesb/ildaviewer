@@ -6,8 +6,6 @@ public class IldaPlayerAsync {
   int currentFrameIdx = 0;
   int prevFrameIdx = -1;
   int fileSeed = (int) (random(1.0) * 0xffffffff);
-  int currentHash;
-  int prevHash;
   boolean paused = false;
   boolean ended = false;
   boolean repeat = true;
@@ -41,10 +39,6 @@ public class IldaPlayerAsync {
         long frameDuration = (long)((1000000000.0 / fps));
         t_nextframe = t_now + frameDuration;
 
-        //if (currentHash != prevHash) {
-          oscSendFrameXYRGB(this.currentFrame);
-        //}
-
         if (scrubbing) {
           loadFrame(currentFrameIdx);
           continue;
@@ -71,7 +65,6 @@ public class IldaPlayerAsync {
         Thread.sleep(50);
       }
     }
-    //println("exiting play() because ended=true");
   }
   
   public void stop() {
@@ -88,21 +81,21 @@ public class IldaPlayerAsync {
     if (file == null || file.frameCount == 0) {
       return;
     }
-    this.prevHash = currentHash;
-    this.currentHash = frameHash(fileSeed, frameIdx);
     this.currentFrame = file.frames.get(frameIdx);
     this.prevFrameIdx = currentFrameIdx;
     this.currentFrameIdx = frameIdx;
+    oscSendFrameXYRGB(this.currentFrame);
   }
   
   public void nextFrame() {
     if (this.file == null || this.file.frameCount == 0) {
       return;
     }
-    this.loadFrame((this.currentFrameIdx+1) % this.file.frameCount);
-    if (paused) {
-      oscSendFrameXYRGB(this.currentFrame);
+    int newFrameIdx = currentFrameIdx + 1;
+    if (newFrameIdx == file.frameCount && this.file.frameCount == 1) {
+      return;
     }
+    this.loadFrame((this.currentFrameIdx+1) % this.file.frameCount);
   }
   
   public void prevFrame() {

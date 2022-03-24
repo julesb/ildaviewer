@@ -145,7 +145,7 @@ void keyPressed() {
 }
 
 void keyTyped() {
-  println("key: " + key);
+  //println("key: " + key);
   switch(key) {
     case 'a':
       autoChangeEnabled = !autoChangeEnabled;
@@ -305,18 +305,18 @@ void nextFrame() {
   if (player  == null || player.file == null) {
     return;
   }
-  player.pause(true);
+  //player.pause(true);
   player.nextFrame();
 }
 void prevFrame() {
   if (player  == null || player.file == null) {
     return;
   }
-  player.pause(true);
+  //player.pause(true);
   player.prevFrame();
 }
 
-void load(int fileIdx) {
+void loadcurrentFileIdx() {
   if(player != null) {
     player.ended = true;
   }
@@ -325,16 +325,16 @@ void load(int fileIdx) {
 void loadNext() {
   currentFileIdx++;
   currentFileIdx %= ildaFilenames.size();
-  load(currentFileIdx);
+  loadcurrentFileIdx();
 }
 void loadPrev() {
   currentFileIdx--;
   currentFileIdx = currentFileIdx < 0? ildaFilenames.size()-1: currentFileIdx;
-  load(currentFileIdx);
+  loadcurrentFileIdx();
 }
 void loadRandom() {
   currentFileIdx = (int)(random(1.0)*ildaFilenames.size());
-  load(currentFileIdx);
+  loadcurrentFileIdx();
 }
 
 void drawFrame(IldaFrame frame) {
