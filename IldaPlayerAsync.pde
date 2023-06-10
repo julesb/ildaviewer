@@ -1,3 +1,5 @@
+import java.util.zip.Deflater;
+
 public class IldaPlayerAsync {
   public static final int MAX_OSC_FPS = 100;
   public IldaFile file;
@@ -120,91 +122,56 @@ public class IldaPlayerAsync {
     return seed * 10000 + frameIdx;
   }
 
+
+
+
   void oscSendFrameXYRGB(IldaFrame frame) {
     if (! this.oscSendEnabled) {
       return;
     }
+
     int numpoints = frame.points.size();
-    if (numpoints > 2600) {
-      file.droppedFrameCount++;
+    if (numpoints == 0) {
       return;
     }
-    if (oscBufferXYRGBI == null || numpoints != oscBufferXYRGBI.length) {
-      oscBufferXYRGBI = new float[numpoints*5];
-    }
-    for (int i=0; i< numpoints; i++) {
+    byte[] packedData = new byte[numpoints * 7]; // 7 bytes for each point
+
+    for (int i = 0; i < numpoints; i++) {
       IldaPoint p = frame.points.get(i);
-      float blanknum = p.blank? 0.0 : 1.0;
-      int bidx = i * 5;
-      oscBufferXYRGBI[bidx+0]  =  p.x / (float)Short.MAX_VALUE * 0x7ff;
-      oscBufferXYRGBI[bidx+1]  =  p.y / (float)Short.MAX_VALUE * 0x7ff;
-      oscBufferXYRGBI[bidx+2]  =  p.rgb[0] * blanknum;
-      oscBufferXYRGBI[bidx+3]  =  p.rgb[1] * blanknum;
-      oscBufferXYRGBI[bidx+4]  =  p.rgb[2] * blanknum;
+      int blanknum = p.blank? 0: 1;
+
+      int offset = i * 7;
+      int x = p.x + 0x8000;
+      int y = p.y + 0x8000;
+      int r = p.rgb[0] * blanknum;
+      int g = p.rgb[1] * blanknum;
+      int b = p.rgb[2] * blanknum;
+
+      packUInt16(packedData, offset + 0, x);
+      packUInt16(packedData, offset + 2, y);
+      packUInt8(packedData, offset + 4, r);
+      packUInt8(packedData, offset + 5, g);
+      packUInt8(packedData, offset + 6, b);
     }
 
-    OscMessage ppsmsg = new OscMessage("/pps");
-    ppsmsg.add(this.pointsPerSec);
+    Deflater deflater = new Deflater();
+    deflater.setInput(packedData);
+    deflater.finish();
+    byte[] compressedData = new byte[packedData.length];
+    int compressedDataLength = deflater.deflate(compressedData);
 
-    OscMessage frameMessage = new OscMessage("/xyrgb");
-    frameMessage.add(oscBufferXYRGBI);
-
-    oscP5.send(ppsmsg, network);
-    try {
-      oscP5.send(frameMessage, network);
-    }
-    catch(Exception e) {
-      e.printStackTrace();
-      println("OVERSIZE: " + oscBufferXYRGBI.length);
-    }
+    OscMessage msg = new OscMessage("/f");
+    msg.add(compressedData);
+    oscP5.send(msg, network);
   }
-/*
-  void oscSendFrame(IldaFrame frame) {
-    if (! this.oscSendEnabled) {
-      return;
-    }
-    int numpoints = frame.points.size();
-    if (oscBufferX == null || numpoints != oscBufferX.length) {
-      oscBufferX  = new float[numpoints];
-      oscBufferY  = new float[numpoints];
-      oscBufferBl = new float[numpoints];
-      oscBufferR  = new float[numpoints];
-      oscBufferG  = new float[numpoints];
-      oscBufferB  = new float[numpoints];
-    }
-    for (int i=0; i< numpoints; i++) {
-      IldaPoint p = frame.points.get(i);
-      oscBufferX[i]  =  p.x / (float)Short.MAX_VALUE;
-      oscBufferY[i]  =  p.y / (float)Short.MAX_VALUE;
-      oscBufferBl[i] = p.blank? 1.0 : 0.0;
-      oscBufferR[i]  = (float)p.rgb[0] / 255.0;
-      oscBufferG[i]  = (float)p.rgb[1] / 255.0;
-      oscBufferB[i]  = (float)p.rgb[2] / 255.0;
-    }
 
-    OscMessage ppsmsg = new OscMessage("/pps");
-    ppsmsg.add(this.pointsPerSec);
+  void packUInt16(byte[] bytes, int offset, int value) {
+    bytes[offset] = (byte) (value & 0xFF);
+    bytes[offset + 1] = (byte) ((value >> 8) & 0xFF);
+  }
   
-    OscMessage pointsxMessage = new OscMessage("/pointsx");
-    pointsxMessage.add(oscBufferX);
-    OscMessage pointsyMessage = new OscMessage("/pointsy");
-    pointsyMessage.add(oscBufferY);
-    OscMessage blankMessage   = new OscMessage("/blank");
-    blankMessage.add(oscBufferBl);
-    OscMessage redMessage     = new OscMessage("/red");
-    redMessage.add(oscBufferR);
-    OscMessage greenMessage   = new OscMessage("/green");
-    greenMessage.add(oscBufferG);
-    OscMessage blueMessage    = new OscMessage("/blue");
-    blueMessage.add(oscBufferB);
-
-    oscP5.send(ppsmsg, network);
-    oscP5.send(pointsxMessage, network);
-    oscP5.send(pointsyMessage, network);
-    oscP5.send(blankMessage, network);
-    oscP5.send(redMessage, network);
-    oscP5.send(greenMessage, network);
-    oscP5.send(blueMessage, network);
+  void packUInt8(byte[] bytes, int offset, int value) {
+    bytes[offset] = (byte) (value & 0xFF);
   }
-*/  
+
 }
