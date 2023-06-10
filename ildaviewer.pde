@@ -42,7 +42,7 @@ void setup() {
   frameRate(60);
 
   oscProps = new OscProperties();
-  network = new NetAddress("127.0.0.1", 12000);
+  network = new NetAddress("nuc", 12000);
   oscProps.setRemoteAddress(network);
   oscProps.setDatagramSize(65536);
   oscP5 = new OscP5(this, oscProps);
@@ -50,6 +50,7 @@ void setup() {
   if (args != null && args.length == 1) {
     ildaFilename = args[0];
     ildaFilenames.add(ildaFilename);
+    ildaPath ="";
     autoChangeEnabled = false;
     previewMode = true;
     constantPPS = false;
@@ -74,7 +75,7 @@ void setup() {
   println("sketchpath: " + sketchPath());
   IldaFile file;
   if (previewMode) {
-    file  = new IldaFile(ildaFilename, ildaFilename);
+    file  = new IldaFile(ildaFilename, makeShortName2(ildaFilename, 20));
   } else {
     file = new IldaFile(dataPath(ildaFilename), ildaFilename);
   }
@@ -301,6 +302,40 @@ String makeShortName(String filename, int maxlen) {
   return shortname;
 }
 
+
+
+String makeShortName2(String filename, int maxlen) {
+  if (filename.length() <= maxlen) {
+    return filename;
+  }
+  
+  // Remove path components
+  int pathSeparatorIdx = filename.lastIndexOf('/');
+  if (pathSeparatorIdx < 0) {
+    pathSeparatorIdx = filename.lastIndexOf('\\');
+  }
+  if (pathSeparatorIdx >= 0) {
+    filename = filename.substring(pathSeparatorIdx + 1);
+  }
+
+  int extidx = filename.toLowerCase().indexOf(".ild");
+  String s1;
+  if (extidx < 0) {
+    s1 = filename;
+  }
+  else {
+    s1 = filename.substring(0, extidx);
+  }
+  
+  String shortname = s1.substring(0, min(s1.length(), maxlen));
+  println("SHORTNAME: " + shortname);
+  return shortname;
+}
+
+
+
+
+
 void nextFrame() {
   if (player  == null || player.file == null) {
     return;
@@ -509,7 +544,7 @@ void playerThread() throws InterruptedException {
   }
   String filename = ildaFilenames.get(currentFileIdx);
   ildaFilename = ildaPath + "/" + filename;
-  String shortname = makeShortName(filename, 20);
+  String shortname = makeShortName2(filename, 20);
   IldaFile file  = new IldaFile(ildaFilename, shortname);
 
   if (file == null || file.frameCount == 0) {
